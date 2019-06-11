@@ -12,16 +12,18 @@ import (
 )
 
 const (
-	connectURL    = "%s/rr_connect?password=%s&time=%s"
-	filelistURL   = "%s/rr_filelist?dir=%s"
-	fileinfoURL   = "%s/rr_fileinfo?name=%s"
-	mkdirURL      = "%s/rr_mkdir?dir=%s"
-	uploadURL     = "%s/rr_upload?name=%s&time=%s"
-	moveURL       = "%s/rr_move?old=%s&new=%s"
-	downloadURL   = "%s/rr_download?name=%s"
-	deleteURL     = "%s/rr_delete?name=%s"
-	typeDirectory = "d"
-	typeFile      = "f"
+	connectURL           = "%s/rr_connect?password=%s&time=%s"
+	filelistURL          = "%s/rr_filelist?dir=%s"
+	fileinfoURL          = "%s/rr_fileinfo?name=%s"
+	mkdirURL             = "%s/rr_mkdir?dir=%s"
+	uploadURL            = "%s/rr_upload?name=%s&time=%s"
+	moveURL              = "%s/rr_move?old=%s&new=%s"
+	downloadURL          = "%s/rr_download?name=%s"
+	deleteURL            = "%s/rr_delete?name=%s"
+	typeDirectory        = "d"
+	typeFile             = "f"
+	errDriveNotMounted   = 1
+	errDirectoryNotExist = 2
 	// TimeFormat is the format of timestamps used by RRF
 	TimeFormat = "2006-01-02T15:04:05"
 )
@@ -157,6 +159,12 @@ func (r *rrffm) getFullFilelist(dir string, first uint64) (*Filelist, error) {
 	err = json.Unmarshal(body, &fl)
 	if err != nil {
 		return nil, err
+	}
+	if fl.err == errDirectoryNotExist {
+		return nil, DirectoryNotFoundError
+	}
+	if fl.err == errDriveNotMounted {
+		return nil, DriveNotMountedError
 	}
 
 	// If the response signals there is more to fetch do it recursively
