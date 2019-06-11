@@ -11,8 +11,10 @@ type RRFFileManager interface {
 	// Connect establishes a connection to RepRapFirmware
 	Connect(password string) error
 
-	// Filelist will download a list of all files (also including directories) for the given path
-	Filelist(path string) (*Filelist, error)
+	// Filelist will download a list of all files (also including directories) for the given path.
+	// If recursive is true it will also populate the field Subdirs of Filelist to contain the full
+	// tree.
+	Filelist(path string, recursive bool) (*Filelist, error)
 
 	// Fileinfo returns information on a given file or an error if the file does not exist
 	Fileinfo(path string) (*Fileinfo, error)

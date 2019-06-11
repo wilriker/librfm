@@ -37,4 +37,5 @@ type Filelist struct {
 	Dir   string
 	Files []file
 	next  uint64
+	Subdirs []Filelist
 }

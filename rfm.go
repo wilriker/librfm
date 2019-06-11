@@ -47,9 +47,9 @@ func New(domain string, port uint64) RRFFileManager {
 // download will perform a GET request on the given URL and return
 // the content of the response, a duration on how long it took (including
 // setup of connection) or an error in case something went wrong
-func (rrffm *rrffm) doGetRequest(url string) ([]byte, *time.Duration, error) {
+func (r *rrffm) doGetRequest(url string) ([]byte, *time.Duration, error) {
 	start := time.Now()
-	resp, err := rrffm.httpClient.Get(url)
+	resp, err := r.httpClient.Get(url)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -63,9 +63,9 @@ func (rrffm *rrffm) doGetRequest(url string) ([]byte, *time.Duration, error) {
 	return body, &duration, nil
 }
 
-func (rrffm *rrffm) doPostRequest(url string, content io.Reader, contentType string) ([]byte, *time.Duration, error) {
+func (r *rrffm) doPostRequest(url string, content io.Reader, contentType string) ([]byte, *time.Duration, error) {
 	start := time.Now()
-	resp, err := rrffm.httpClient.Post(url, contentType, content)
+	resp, err := r.httpClient.Post(url, contentType, content)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -79,7 +79,7 @@ func (rrffm *rrffm) doPostRequest(url string, content io.Reader, contentType str
 	return body, &duration, nil
 }
 
-func (rrffm *rrffm) checkError(action string, resp []byte, err error) error {
+func (r *rrffm) checkError(action string, resp []byte, err error) error {
 	if err != nil {
 		return err
 	}
@@ -96,21 +96,17 @@ func (rrffm *rrffm) checkError(action string, resp []byte, err error) error {
 	return nil
 }
 
-func (rrffm *rrffm) getTimestamp() string {
+func (r *rrffm) getTimestamp() string {
 	return time.Now().Format(TimeFormat)
 }
 
-func (rrffm *rrffm) Connect(password string) error {
-	_, _, err := rrffm.doGetRequest(fmt.Sprintf(connectURL, rrffm.baseURL, url.QueryEscape(password), url.QueryEscape(rrffm.getTimestamp())))
+func (r *rrffm) Connect(password string) error {
+	_, _, err := r.doGetRequest(fmt.Sprintf(connectURL, r.baseURL, url.QueryEscape(password), url.QueryEscape(r.getTimestamp())))
 	return err
 }
 
-func (rrffm *rrffm) Filelist(dir string) (*Filelist, error) {
-	return rrffm.getFileListRecursively(url.QueryEscape(dir), 0)
-}
-
-func (rrffm *rrffm) Fileinfo(path string) (*Fileinfo, error) {
-	body, _, err := rrffm.doGetRequest(fmt.Sprintf(fileinfoURL, rrffm.baseURL, url.QueryEscape(path)))
+func (r *rrffm) Fileinfo(path string) (*Fileinfo, error) {
+	body, _, err := r.doGetRequest(fmt.Sprintf(fileinfoURL, r.baseURL, url.QueryEscape(path)))
 	if err != nil {
 		return nil, err
 	}
@@ -128,9 +124,31 @@ func (rrffm *rrffm) Fileinfo(path string) (*Fileinfo, error) {
 	return &f, nil
 }
 
-func (rrffm *rrffm) getFileListRecursively(dir string, first uint64) (*Filelist, error) {
+func (r *rrffm) Filelist(dir string, recursive bool) (*Filelist, error) {
+	fl, err := r.getFullFilelist(url.QueryEscape(dir), 0)
+	if err != nil {
+		return nil, err
+	}
+	if recursive {
+		for _, f := range fl.Files {
+			if !f.IsDir() {
 
-	body, _, err := rrffm.doGetRequest(fmt.Sprintf(filelistURL, rrffm.baseURL, dir))
+				// Directories come first so once we get here we can skip the remaining
+				break
+			}
+			subfl, err := r.Filelist(fmt.Sprintf("%s/%s", fl.Dir, f.Name), true)
+			if err != nil {
+				return nil, err
+			}
+			fl.Subdirs = append(fl.Subdirs, *subfl)
+		}
+	}
+	return fl, nil
+}
+
+func (r *rrffm) getFullFilelist(dir string, first uint64) (*Filelist, error) {
+
+	body, _, err := r.doGetRequest(fmt.Sprintf(filelistURL, r.baseURL, dir))
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +161,7 @@ func (rrffm *rrffm) getFileListRecursively(dir string, first uint64) (*Filelist,
 
 	// If the response signals there is more to fetch do it recursively
 	if fl.next > 0 {
-		moreFiles, err := rrffm.getFileListRecursively(dir, fl.next)
+		moreFiles, err := r.getFullFilelist(dir, fl.next)
 		if err != nil {
 			return nil, err
 		}
@@ -161,59 +179,61 @@ func (rrffm *rrffm) getFileListRecursively(dir string, first uint64) (*Filelist,
 		// Different types -> sort folders first
 		return fl.Files[i].Type == typeDirectory
 	})
+	fl.Subdirs = make([]Filelist, 0)
 	return &fl, nil
 }
 
-func (rrffm *rrffm) Download(filepath string) ([]byte, *time.Duration, error) {
-	return rrffm.doGetRequest(fmt.Sprintf(downloadURL, rrffm.baseURL, url.QueryEscape(filepath)))
+func (r *rrffm) Download(filepath string) ([]byte, *time.Duration, error) {
+	return r.doGetRequest(fmt.Sprintf(downloadURL, r.baseURL, url.QueryEscape(filepath)))
 }
 
-func (rrffm *rrffm) Mkdir(path string) error {
-	resp, _, err := rrffm.doGetRequest(fmt.Sprintf(mkdirURL, rrffm.baseURL, url.QueryEscape(path)))
-	return rrffm.checkError(fmt.Sprintf("Mkdir %s", path), resp, err)
+func (r *rrffm) Mkdir(path string) error {
+	resp, _, err := r.doGetRequest(fmt.Sprintf(mkdirURL, r.baseURL, url.QueryEscape(path)))
+	return r.checkError(fmt.Sprintf("Mkdir %s", path), resp, err)
 }
 
-func (rrffm *rrffm) Move(oldpath, newpath string) error {
-	resp, _, err := rrffm.doGetRequest(fmt.Sprintf(moveURL, rrffm.baseURL, url.QueryEscape(oldpath), url.QueryEscape(newpath)))
-	return rrffm.checkError(fmt.Sprintf("Rename %s to %s", oldpath, newpath), resp, err)
+func (r *rrffm) Move(oldpath, newpath string) error {
+	resp, _, err := r.doGetRequest(fmt.Sprintf(moveURL, r.baseURL, url.QueryEscape(oldpath), url.QueryEscape(newpath)))
+	return r.checkError(fmt.Sprintf("Rename %s to %s", oldpath, newpath), resp, err)
 }
 
-func (rrffm *rrffm) MoveOverwrite(oldpath, newpath string) error {
-	if _, err := rrffm.Fileinfo(newpath); err == nil {
-		if err := rrffm.Delete(newpath); err != nil {
+func (r *rrffm) MoveOverwrite(oldpath, newpath string) error {
+	if _, err := r.Fileinfo(newpath); err == nil {
+		if err := r.Delete(newpath); err != nil {
 			return err
 		}
 	}
-	return rrffm.Move(oldpath, newpath)
+	return r.Move(oldpath, newpath)
 }
 
-func (rrffm *rrffm) Delete(path string) error {
-	resp, _, err := rrffm.doGetRequest(fmt.Sprintf(deleteURL, rrffm.baseURL, url.QueryEscape(path)))
-	return rrffm.checkError(fmt.Sprintf("Delete %s", path), resp, err)
+func (r *rrffm) Delete(path string) error {
+	resp, _, err := r.doGetRequest(fmt.Sprintf(deleteURL, r.baseURL, url.QueryEscape(path)))
+	return r.checkError(fmt.Sprintf("Delete %s", path), resp, err)
 }
 
-func (rrffm *rrffm) DeleteRecursive(path string) error {
-	fl, err := rrffm.Filelist(path)
+func (r *rrffm) DeleteRecursive(path string) error {
+	fl, err := r.Filelist(path, true)
 	if err != nil {
 		return err
 	}
-	for _, f := range fl.Files {
-		if !f.IsDir() {
+	return r.deleteRecursive(fl)
+}
 
-			// Directories come first so once we get here we can skip the remaining
-			break
-		}
-		if err = rrffm.DeleteRecursive(fmt.Sprintf("%s/%s", fl.Dir, f.Name)); err != nil {
+func (r *rrffm) deleteRecursive(fl *Filelist) error {
+	for _, f := range fl.Subdirs {
+		if err := r.deleteRecursive(&f); err != nil {
 			return err
 		}
 	}
 	for _, f := range fl.Files {
-		rrffm.Delete(f.Name)
+		if err := r.Delete(f.Name); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (rrffm *rrffm) Upload(path string, content io.Reader) (*time.Duration, error) {
-	resp, duration, err := rrffm.doPostRequest(fmt.Sprintf(uploadURL, rrffm.baseURL, url.QueryEscape(path), url.QueryEscape(rrffm.getTimestamp())), content, "application/octet-stream")
-	return duration, rrffm.checkError(fmt.Sprintf("Uploading file to %s", path), resp, err)
+func (r *rrffm) Upload(path string, content io.Reader) (*time.Duration, error) {
+	resp, duration, err := r.doPostRequest(fmt.Sprintf(uploadURL, r.baseURL, url.QueryEscape(path), url.QueryEscape(r.getTimestamp())), content, "application/octet-stream")
+	return duration, r.checkError(fmt.Sprintf("Uploading file to %s", path), resp, err)
 }
