@@ -1,6 +1,11 @@
 package librfm
 
-import "time"
+import (
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+)
 
 type localTime struct {
 	Time time.Time
@@ -32,10 +37,43 @@ func (f *file) IsFile() bool {
 	return f.Type == typeFile
 }
 
+var DirectoryNotFoundError = errors.New("Directory not found")
+var DriveNotMountedError = errors.New("Drive not mounted")
+
 // Filelist resembled the JSON object in rr_filelist
 type Filelist struct {
-	Dir   string
-	Files []file
-	next  uint64
+	Dir     string
+	Files   []file
+	next    uint64
+	err     uint64
 	Subdirs []Filelist
+	once    sync.Once
+	index   map[string]struct{}
+}
+
+// Contains checks for a path to exist in this filelist
+func (f *Filelist) Contains(path string) bool {
+	f.once.Do(f.buildIndex)
+	if _, found := f.index[path]; found {
+		return true
+	}
+	return false
+}
+
+func (f *Filelist) buildIndex() {
+	f.index = make(map[string]struct{})
+
+	// Init index of subdirs
+	for _, subdir := range f.Subdirs {
+		subdir.buildIndex()
+		for k, v := range subdir.index {
+			f.index[k] = v
+		}
+	}
+	for _, file := range f.Files {
+		if file.IsDir() {
+			continue
+		}
+		f.index[fmt.Sprintf("%s/%s", f.Dir, file.Name)] = struct{}{}
+	}
 }
