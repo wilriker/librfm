@@ -28,14 +28,8 @@ type RRFFileManager interface {
 	// Move renames or moves a file or directory (only within the same SD card)
 	Move(oldpath, newpath string) error
 
-	// MoveOverwrite will delete the target file first and thus overwriting it
-	MoveOverwrite(oldpath, newpath string) error
-
 	// Delete removes the given path. It will fail for non-empty directories.
 	Delete(path string) error
-
-	// DeleteRecursive removes the given path recursively. This will also delete directories with all their contents.
-	DeleteRecursive(path string) error
 
 	// Upload uploads a new file to the given path on the SD card
 	Upload(path string, content io.Reader) (*time.Duration, error)

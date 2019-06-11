@@ -197,40 +197,9 @@ func (r *rrffm) Move(oldpath, newpath string) error {
 	return r.checkError(fmt.Sprintf("Rename %s to %s", oldpath, newpath), resp, err)
 }
 
-func (r *rrffm) MoveOverwrite(oldpath, newpath string) error {
-	if _, err := r.Fileinfo(newpath); err == nil {
-		if err := r.Delete(newpath); err != nil {
-			return err
-		}
-	}
-	return r.Move(oldpath, newpath)
-}
-
 func (r *rrffm) Delete(path string) error {
 	resp, _, err := r.doGetRequest(fmt.Sprintf(deleteURL, r.baseURL, url.QueryEscape(path)))
 	return r.checkError(fmt.Sprintf("Delete %s", path), resp, err)
-}
-
-func (r *rrffm) DeleteRecursive(path string) error {
-	fl, err := r.Filelist(path, true)
-	if err != nil {
-		return err
-	}
-	return r.deleteRecursive(fl)
-}
-
-func (r *rrffm) deleteRecursive(fl *Filelist) error {
-	for _, f := range fl.Subdirs {
-		if err := r.deleteRecursive(&f); err != nil {
-			return err
-		}
-	}
-	for _, f := range fl.Files {
-		if err := r.Delete(f.Name); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (r *rrffm) Upload(path string, content io.Reader) (*time.Duration, error) {
