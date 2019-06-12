@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// FileNotFoundError is the error returned in case a call to
+// ErrFileNotFound is the error returned in case a call to
 // the rr_fileinfo interface was successful but returned err != 0
-var FileNotFoundError = errors.New("File not found")
+var ErrFileNotFound = errors.New("File not found")
 
 // Fileinfo is the structure returned at rr_fileinfo interface
 type Fileinfo struct {
@@ -22,6 +22,7 @@ type Fileinfo struct {
 	GeneratedBy      string
 }
 
+// LastModified returns the last modification time of this file
 func (f *Fileinfo) LastModified() time.Time {
 	return f.Timestamp.Time
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -35,14 +36,16 @@ type errorResponse struct {
 type rrffm struct {
 	httpClient *http.Client
 	baseURL    string
+	debug      bool
 }
 
 // New creates a new instance of RRFFileManager
-func New(domain string, port uint64) RRFFileManager {
+func New(domain string, port uint64, debug bool) RRFFileManager {
 	tr := &http.Transport{DisableCompression: true}
 	return &rrffm{
 		httpClient: &http.Client{Transport: tr},
 		baseURL:    fmt.Sprintf("http://%s:%d", domain, port),
+		debug:      debug,
 	}
 }
 
@@ -50,6 +53,9 @@ func New(domain string, port uint64) RRFFileManager {
 // the content of the response, a duration on how long it took (including
 // setup of connection) or an error in case something went wrong
 func (r *rrffm) doGetRequest(url string) ([]byte, *time.Duration, error) {
+	if r.debug {
+		log.Printf("Doing GET request to %s", url)
+	}
 	start := time.Now()
 	resp, err := r.httpClient.Get(url)
 	if err != nil {
@@ -59,6 +65,9 @@ func (r *rrffm) doGetRequest(url string) ([]byte, *time.Duration, error) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	duration := time.Since(start)
+	if r.debug {
+		log.Printf("Received response\n%s", string(body))
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -66,6 +75,9 @@ func (r *rrffm) doGetRequest(url string) ([]byte, *time.Duration, error) {
 }
 
 func (r *rrffm) doPostRequest(url string, content io.Reader, contentType string) ([]byte, *time.Duration, error) {
+	if r.debug {
+		log.Printf("Doing POST request to %s", url)
+	}
 	start := time.Now()
 	resp, err := r.httpClient.Post(url, contentType, content)
 	if err != nil {
@@ -75,6 +87,9 @@ func (r *rrffm) doPostRequest(url string, content io.Reader, contentType string)
 
 	body, err := ioutil.ReadAll(resp.Body)
 	duration := time.Since(start)
+	if r.debug {
+		log.Printf("Received response\n%s", string(body))
+	}
 	if err != nil {
 		return nil, nil, err
 	}
@@ -120,7 +135,7 @@ func (r *rrffm) Fileinfo(path string) (*Fileinfo, error) {
 	}
 
 	if f.Err != 0 {
-		return nil, FileNotFoundError
+		return nil, ErrFileNotFound
 	}
 
 	return &f, nil
@@ -142,7 +157,7 @@ func (r *rrffm) Filelist(dir string, recursive bool) (*Filelist, error) {
 			if err != nil {
 				return nil, err
 			}
-			fl.Subdirs = append(fl.Subdirs, *subfl)
+			fl.Subdirs = append(fl.Subdirs, subfl)
 		}
 	}
 	return fl, nil
@@ -160,16 +175,16 @@ func (r *rrffm) getFullFilelist(dir string, first uint64) (*Filelist, error) {
 	if err != nil {
 		return nil, err
 	}
-	if fl.err == errDirectoryNotExist {
-		return nil, DirectoryNotFoundError
+	if fl.Err == errDirectoryNotExist {
+		return nil, ErrDirectoryNotFound
 	}
-	if fl.err == errDriveNotMounted {
-		return nil, DriveNotMountedError
+	if fl.Err == errDriveNotMounted {
+		return nil, ErrDriveNotMounted
 	}
 
 	// If the response signals there is more to fetch do it recursively
-	if fl.next > 0 {
-		moreFiles, err := r.getFullFilelist(dir, fl.next)
+	if fl.Next > 0 {
+		moreFiles, err := r.getFullFilelist(dir, fl.Next)
 		if err != nil {
 			return nil, err
 		}
@@ -187,7 +202,7 @@ func (r *rrffm) getFullFilelist(dir string, first uint64) (*Filelist, error) {
 		// Different types -> sort folders first
 		return fl.Files[i].Type == typeDirectory
 	})
-	fl.Subdirs = make([]Filelist, 0)
+	fl.Subdirs = make([]*Filelist, 0)
 	return &fl, nil
 }
 

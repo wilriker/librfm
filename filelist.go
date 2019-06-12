@@ -17,51 +17,54 @@ func (lt *localTime) UnmarshalJSON(b []byte) (err error) {
 	return err
 }
 
-// file resembles the JSON object returned in the files property of the rr_filelist response
-type file struct {
+// File resembles the JSON object returned in the files property of the rr_filelist response
+type File struct {
 	Type      string
 	Name      string
 	Size      uint64
 	Timestamp localTime `json:"date"`
 }
 
-func (f *file) Date() time.Time {
+// Date returns the last modification date of a file/directory
+func (f *File) Date() time.Time {
 	return f.Timestamp.Time
 }
 
-func (f *file) IsDir() bool {
+// IsDir returns true if the File instance is a directory, false otherwise
+func (f *File) IsDir() bool {
 	return f.Type == typeDirectory
 }
 
-func (f *file) IsFile() bool {
+// IsFile returns true if the File instance is a file, false otherwise
+func (f *File) IsFile() bool {
 	return f.Type == typeFile
 }
 
-var DirectoryNotFoundError = errors.New("Directory not found")
-var DriveNotMountedError = errors.New("Drive not mounted")
+// ErrDirectoryNotFound is the error returned if a directory was not found
+var ErrDirectoryNotFound = errors.New("Directory not found")
+
+// ErrDriveNotMounted is the error returned if the requested drive is not mounted
+var ErrDriveNotMounted = errors.New("Drive not mounted")
 
 // Filelist resembled the JSON object in rr_filelist
 type Filelist struct {
 	Dir     string
-	Files   []file
-	next    uint64
-	err     uint64
-	Subdirs []Filelist
+	Files   []File
+	Next    uint64
+	Err     uint64
+	Subdirs []*Filelist
 	once    sync.Once
-	index   map[string]struct{}
+	index   map[string]bool
 }
 
 // Contains checks for a path to exist in this filelist
 func (f *Filelist) Contains(path string) bool {
 	f.once.Do(f.buildIndex)
-	if _, found := f.index[path]; found {
-		return true
-	}
-	return false
+	return f.index[path]
 }
 
 func (f *Filelist) buildIndex() {
-	f.index = make(map[string]struct{})
+	f.index = make(map[string]bool)
 
 	// Init index of subdirs
 	for _, subdir := range f.Subdirs {
@@ -69,11 +72,13 @@ func (f *Filelist) buildIndex() {
 		for k, v := range subdir.index {
 			f.index[k] = v
 		}
+		f.index[subdir.Dir] = true
 	}
 	for _, file := range f.Files {
 		if file.IsDir() {
 			continue
 		}
-		f.index[fmt.Sprintf("%s/%s", f.Dir, file.Name)] = struct{}{}
+		f.index[fmt.Sprintf("%s/%s", f.Dir, file.Name)] = true
 	}
+	f.index[f.Dir] = true
 }
