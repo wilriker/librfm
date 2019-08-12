@@ -59,7 +59,7 @@ func (r *rrffm) doGetRequest(url string) ([]byte, *time.Duration, error) {
 	}
 	start := time.Now()
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -94,13 +94,13 @@ func (r *rrffm) doPostRequest(url string, content io.Reader, contentType string)
 	}
 	start := time.Now()
 
-	req, err := http.NewRequest("POST", url, content)
+	req, err := http.NewRequest(http.MethodPost, url, content)
 	if err != nil {
 		return nil, nil, err
 	}
 	req.Header.Set("Content-Type", contentType)
 	if r.debug {
-		dump, _ := httputil.DumpRequestOut(req, false)
+		dump, _ := httputil.DumpRequestOut(req, true)
 		log.Println(string(dump))
 	}
 
