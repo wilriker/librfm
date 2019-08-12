@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"sort"
 	"time"
@@ -49,7 +50,7 @@ func New(domain string, port uint64, debug bool) RRFFileManager {
 	}
 }
 
-// download will perform a GET request on the given URL and return
+// doGetRequest will perform a GET request on the given URL and return
 // the content of the response, a duration on how long it took (including
 // setup of connection) or an error in case something went wrong
 func (r *rrffm) doGetRequest(url string) ([]byte, *time.Duration, error) {
@@ -57,7 +58,17 @@ func (r *rrffm) doGetRequest(url string) ([]byte, *time.Duration, error) {
 		log.Printf("Doing GET request to %s", url)
 	}
 	start := time.Now()
-	resp, err := r.httpClient.Get(url)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	if r.debug {
+		dump, _ := httputil.DumpRequestOut(req, false)
+		log.Println(string(dump))
+	}
+
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -74,12 +85,26 @@ func (r *rrffm) doGetRequest(url string) ([]byte, *time.Duration, error) {
 	return body, &duration, nil
 }
 
+// doPostRequest will perform a POST request on the given URL and return
+// the content of the response, a duration on long it tool (including
+// setup of connection) or an error in case something went wrong
 func (r *rrffm) doPostRequest(url string, content io.Reader, contentType string) ([]byte, *time.Duration, error) {
 	if r.debug {
 		log.Printf("Doing POST request to %s", url)
 	}
 	start := time.Now()
-	resp, err := r.httpClient.Post(url, contentType, content)
+
+	req, err := http.NewRequest("POST", url, content)
+	if err != nil {
+		return nil, nil, err
+	}
+	req.Header.Set("Content-Type", contentType)
+	if r.debug {
+		dump, _ := httputil.DumpRequestOut(req, false)
+		log.Println(string(dump))
+	}
+
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, nil, err
 	}

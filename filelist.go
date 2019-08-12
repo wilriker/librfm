@@ -19,9 +19,13 @@ func (lt *localTime) UnmarshalJSON(b []byte) (err error) {
 
 // File resembles the JSON object returned in the files property of the rr_filelist response
 type File struct {
-	Type      string
-	Name      string
-	Size      uint64
+	// Type of file - can be file or directory
+	Type string
+	// Name of file
+	Name string
+	// Size of file in bytes
+	Size uint64
+	// Timestamp corresponds to last modification date
 	Timestamp localTime `json:"date"`
 }
 
