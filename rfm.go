@@ -259,7 +259,7 @@ func (r *rrffm) Upload(path string, content io.Reader) (*time.Duration, error) {
 	if err != nil {
 		return nil, err
 	}
-	uri := fmt.Sprintf(uploadURL, r.baseURL, url.QueryEscape(path), url.QueryEscape(r.getTimestamp()), crc32)
+	uri := fmt.Sprintf(uploadURL, r.baseURL, url.QueryEscape(path), url.QueryEscape(r.getTimestamp()), url.QueryEscape(crc32))
 	resp, duration, err := r.doPostRequest(uri, content, "application/octet-stream")
 	return duration, r.checkError(fmt.Sprintf("Uploading file to %s", path), resp, err)
 }
@@ -276,7 +276,7 @@ func (r *rrffm) getCRC32(content io.Reader) (io.Reader, string, error) {
 
 	// Create little-endian represenation of CRC32 sum
 	le := make([]byte, crc32.Size)
-	binary.LittleEndian.PutUint32(le, c)
+	binary.BigEndian.PutUint32(le, c)
 
 	return bytes.NewReader(b), hex.EncodeToString(le), nil
 }
