@@ -1,8 +1,12 @@
 package librfm
 
 import (
+	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"io/ioutil"
 	"log"
@@ -18,7 +22,7 @@ const (
 	filelistURL          = "%s/rr_filelist?dir=%s"
 	fileinfoURL          = "%s/rr_fileinfo?name=%s"
 	mkdirURL             = "%s/rr_mkdir?dir=%s"
-	uploadURL            = "%s/rr_upload?name=%s&time=%s"
+	uploadURL            = "%s/rr_upload?name=%s&time=%s&crc32=%s"
 	moveURL              = "%s/rr_move?old=%s&new=%s"
 	downloadURL          = "%s/rr_download?name=%s"
 	deleteURL            = "%s/rr_delete?name=%s"
@@ -251,6 +255,28 @@ func (r *rrffm) Delete(path string) error {
 }
 
 func (r *rrffm) Upload(path string, content io.Reader) (*time.Duration, error) {
-	resp, duration, err := r.doPostRequest(fmt.Sprintf(uploadURL, r.baseURL, url.QueryEscape(path), url.QueryEscape(r.getTimestamp())), content, "application/octet-stream")
+	content, crc32, err := r.getCRC32(content)
+	if err != nil {
+		return nil, err
+	}
+	uri := fmt.Sprintf(uploadURL, r.baseURL, url.QueryEscape(path), url.QueryEscape(r.getTimestamp()), crc32)
+	resp, duration, err := r.doPostRequest(uri, content, "application/octet-stream")
 	return duration, r.checkError(fmt.Sprintf("Uploading file to %s", path), resp, err)
+}
+
+func (r *rrffm) getCRC32(content io.Reader) (io.Reader, string, error) {
+
+	// Slurp the io.Reader back into a byte slice
+	b, err := ioutil.ReadAll(content)
+	if err != nil {
+		return nil, "", err
+	}
+	// Calculate CRC32 with IEEE polynomials
+	c := crc32.ChecksumIEEE(b)
+
+	// Create little-endian represenation of CRC32 sum
+	le := make([]byte, crc32.Size)
+	binary.LittleEndian.PutUint32(le, c)
+
+	return bytes.NewReader(b), hex.EncodeToString(le), nil
 }
