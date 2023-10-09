@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"hash/crc32"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -78,10 +78,10 @@ func (r *rrffm) doGetRequest(url string) ([]byte, *time.Duration, error) {
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	duration := time.Since(start)
 	if r.debug {
-		log.Printf("Received response\n%s", string(body))
+		log.Printf("Received response\n%s\n%s", printHeaders(resp), printableBody(body))
 	}
 	if err != nil {
 		return nil, nil, err
@@ -114,15 +114,35 @@ func (r *rrffm) doPostRequest(url string, content io.Reader, contentType string)
 	}
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	duration := time.Since(start)
 	if r.debug {
-		log.Printf("Received response\n%s", string(body))
+		log.Printf("Received response\n%s\n%s", printHeaders(resp), printableBody(body))
 	}
 	if err != nil {
 		return nil, nil, err
 	}
 	return body, &duration, nil
+}
+
+func printHeaders(resp *http.Response) string {
+	var sb strings.Builder
+	for k, v := range resp.Header {
+		sb.WriteString(fmt.Sprintf("%s: %s\n", k, v))
+	}
+	return sb.String()
+}
+
+func printableBody(body []byte) string {
+	contentType := http.DetectContentType(body)
+	if !isText(contentType) {
+		return fmt.Sprintf("Content-Type (inferred): %s (binary data)", contentType)
+	}
+	return fmt.Sprintf("Content-Type (inferred): %s\n\n%s", contentType, string(body))
+}
+
+func isText(contentType string) bool {
+	return strings.HasPrefix(contentType, "text/")
 }
 
 func (r *rrffm) checkError(action string, resp []byte, err error) error {
@@ -267,7 +287,7 @@ func (r *rrffm) Upload(path string, content io.Reader) (*time.Duration, error) {
 func (r *rrffm) getCRC32(content io.Reader) (io.Reader, string, error) {
 
 	// Slurp the io.Reader back into a byte slice
-	b, err := ioutil.ReadAll(content)
+	b, err := io.ReadAll(content)
 	if err != nil {
 		return nil, "", err
 	}
