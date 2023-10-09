@@ -19,7 +19,7 @@ import (
 
 const (
 	connectURL           = "%s/rr_connect?password=%s&time=%s"
-	filelistURL          = "%s/rr_filelist?dir=%s"
+	filelistURL          = "%s/rr_filelist?dir=%s&first=%d"
 	fileinfoURL          = "%s/rr_fileinfo?name=%s"
 	mkdirURL             = "%s/rr_mkdir?dir=%s"
 	uploadURL            = "%s/rr_upload?name=%s&time=%s&crc32=%s"
@@ -214,7 +214,7 @@ func (r *rrffm) Filelist(dir string, recursive bool) (*Filelist, error) {
 
 func (r *rrffm) getFullFilelist(dir string, first uint64) (*Filelist, error) {
 
-	body, _, err := r.doGetRequest(fmt.Sprintf(filelistURL, r.baseURL, dir))
+	body, _, err := r.doGetRequest(fmt.Sprintf(filelistURL, r.baseURL, dir, first))
 	if err != nil {
 		return nil, err
 	}
